@@ -26,7 +26,7 @@ Utilidades para obter e extrair dados de arquivos das eleições 2022
 
 ## TODO
 
-Modo de download dos arquivos do TSE.
+Modo de download dos arquivos do TSE. Note que alguns arquivos (na ordem de 10, dentre os 940mil) vieram corrompidos da primeira vez. Verificar.
 
 ## Como utilizar
 
