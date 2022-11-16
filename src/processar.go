@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dpsigor/hltrnty"
 )
@@ -125,14 +126,16 @@ func processUrna(dir, buDump, buSpec string, entry fs.DirEntry) urna {
 }
 
 func processEntries(dir, buDump, buSpec string, entries []fs.DirEntry, ch chan<- urna) {
-	workers := 2 * runtime.GOMAXPROCS(0)
+	workers := 4 * 2 * runtime.GOMAXPROCS(0)
 	entriesCh := make(chan fs.DirEntry)
 	wg := sync.WaitGroup{}
 	for i := 0; i < workers; i++ {
 		go func(entries <-chan fs.DirEntry, results chan<- urna) {
 			wg.Add(1)
 			for entry := range entries {
+				start := time.Now()
 				results <- processUrna(dir, buDump, buSpec, entry)
+				fmt.Println("processUrna", time.Since(start))
 			}
 			wg.Done()
 		}(entriesCh, ch)

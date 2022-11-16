@@ -36,7 +36,7 @@ func main() {
 		str := fmt.Sprintf("%s;%s;%s;%s;%s;%d;%d;%d;%d;%d;%d;%d;%d;%s;%s\n", v.buname, v.logname, v.municipio, v.zona, v.secao, v.bolso, v.lula, v.brancos, v.nulos, v.qtdComparecimento, v.qtdVotosPR, v.qtdTeclaIndevida, v.qtdAlertas, v.versao, v.modelo)
 		w.WriteString(str)
 		if logProgress {
-			logger.progress()
+			logger.progress(uf)
 		}
 	}
 }

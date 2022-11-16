@@ -6,8 +6,35 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
+
 	"os/exec"
+
+	ber "github.com/go-asn1-ber/asn1-ber"
 )
+
+type TipoVoto int
+
+const (
+	tipoVotoNominal           TipoVoto = 1
+	tipoVotoBranco            TipoVoto = 2
+	tipoVotoNulo              TipoVoto = 3
+	tipoVotoLegenda           TipoVoto = 4
+	tipoVotoCargoSemCandidato TipoVoto = 5
+)
+
+func (t TipoVoto) String() string {
+	if t == tipoVotoNominal {
+		return "nominal"
+	}
+	if t == tipoVotoBranco {
+		return "branco"
+	}
+	if t == tipoVotoNulo {
+		return "nulo"
+	}
+	return "outro"
+}
 
 type bujson struct {
 	EntidadeBoletimUrna struct {
@@ -75,6 +102,156 @@ type bujson struct {
 	// 	Identificacao []interface{} `json:"identificacao"`
 	// 	TipoEnvelope  string        `json:"tipoEnvelope"`
 	// } `json:"EntidadeEnvelopeGenerico"`
+}
+
+type Presidente int
+
+const (
+	bolso Presidente = 22
+	lula  Presidente = 13
+)
+
+type BUVoto struct {
+	qtd      int64
+	voto     Presidente
+	tipoVoto TipoVoto
+}
+
+type BU struct {
+	dataGeracao       time.Time
+	dataHoraEmissao   time.Time
+	municipio         int64
+	zona              int64
+	local             int64
+	secao             int64
+	idEleicao         int64
+	qtdEleitoresAptos int64
+	qtdComparecimento int64
+	votos             []BUVoto
+}
+
+func berInt(b []byte) int64 {
+	ret, err := ber.ParseInt64(b)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ret
+}
+
+func fmtTime(s string) time.Time {
+	t, err := time.Parse("20060102T150405", s)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return t
+}
+
+func processaBU(bupath string) BU {
+	bu := BU{}
+	f, err := os.Open(bupath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bs, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	packet := ber.DecodePacket(bs)
+	if len(packet.Children) != 5 {
+		log.Fatalf("expected packet to have 5 children, got %d\n", len(packet.Children))
+	}
+	entidadeBU := ber.DecodePacket(packet.Children[4].ByteValue)
+	if len(entidadeBU.Children) < 10 {
+		log.Fatalf("expected entidadeBU to have at least 10 children, got %d\n", len(entidadeBU.Children))
+	}
+	cabecalho := entidadeBU.Children[0]
+	if len(cabecalho.Children) != 2 {
+		log.Fatalf("expected cabecalho to have 2 children, got %d\n", len(packet.Children))
+	}
+	bu.dataGeracao = fmtTime(string(cabecalho.Children[0].ByteValue))
+	bu.dataHoraEmissao = fmtTime(string(entidadeBU.Children[4].ByteValue))
+	// x := entidadeBU.Children[3] // identificacaoSecao
+	// x := entidadeBU.Children[5] // dois timestamps // dadosSecaoSA
+	// x := entidadeBU.Children[6] // é um boolean // qtdEleitoresLibCodigo. Ignorar primeiros dois bytes
+	// x := entidadeBU.Children[7] // é um inteiro // qtdEleitoresCompBiometrico. Ignorar primeiros dois bytes
+	// x := entidadeBU.Children[9] // é um octet string
+	resultadosVotacaoPorEleicao := entidadeBU.Children[8] // contém um child, e este contem 3 children
+	identificacaoSecao := entidadeBU.Children[3]
+	if len(identificacaoSecao.Children) != 3 {
+		log.Fatalf("expected identificacaoSecao to have 3 children, got %d\n", len(identificacaoSecao.Children))
+	}
+	municipioZona := identificacaoSecao.Children[0]
+	if len(municipioZona.Children) != 2 {
+		log.Fatalf("expected municipioZona to have 2 children, got %d\n", len(municipioZona.Children))
+	}
+	bu.municipio = berInt(municipioZona.Children[0].ByteValue)
+	bu.zona = berInt(municipioZona.Children[1].ByteValue)
+	bu.local = berInt(identificacaoSecao.Children[1].ByteValue)
+	bu.secao = berInt(identificacaoSecao.Children[2].ByteValue)
+	if len(resultadosVotacaoPorEleicao.Children) != 1 && len(resultadosVotacaoPorEleicao.Children) != 2 {
+		log.Fatalf("expected resultadosVotacaoPorEleicao.Children to have 1 ou 2 child, got %d\n", len(resultadosVotacaoPorEleicao.Children))
+	}
+	idx := 0
+	bu.idEleicao = berInt(resultadosVotacaoPorEleicao.Children[idx].Children[0].ByteValue)
+	if bu.idEleicao != 545 {
+		idx = 1
+		bu.idEleicao = berInt(resultadosVotacaoPorEleicao.Children[idx].Children[0].ByteValue)
+	}
+	bu.qtdEleitoresAptos = berInt(resultadosVotacaoPorEleicao.Children[idx].Children[1].ByteValue)
+	resultadoPkt := resultadosVotacaoPorEleicao.Children[idx].Children[2]
+	if resultadoPkt.Tag != ber.TagSequence {
+		log.Fatalf("expected to have resultados da eleicao as tag sequence, got %d\n", resultadosVotacaoPorEleicao.Children[idx].Children[2].Tag)
+	}
+	if len(resultadoPkt.Children) != 1 {
+		log.Fatalf("expected resultadoPkt to have one child, got %d\n", len(resultadoPkt.Children))
+	}
+	resultado := resultadoPkt.Children[0]
+	if len(resultado.Children) != 3 {
+		log.Fatalf("expected resultado to have 3 children, got %d\n", len(resultado.Children))
+	}
+	bu.qtdComparecimento = berInt(resultado.Children[1].ByteValue)
+	totaisVotosCargoSeq := resultado.Children[2]
+	if len(totaisVotosCargoSeq.Children) != 1 {
+		log.Fatalf("expected totaisVotosCargoSeq to have 1 child, got %d\n", len(totaisVotosCargoSeq.Children))
+	}
+	totaisVotosCargo := totaisVotosCargoSeq.Children[0]
+	if len(totaisVotosCargo.Children) != 3 {
+		log.Fatalf("expected totaisVotosCargo to have 3 children, got %d\n", len(totaisVotosCargo.Children))
+	}
+	votosVotaveis := totaisVotosCargo.Children[2]
+	if len(votosVotaveis.Children) != 4 {
+		log.Fatalf("expected totaisVotosCargo to have 3 children, got %d\n", len(totaisVotosCargo.Children))
+	}
+	for _, votoVotaveis := range votosVotaveis.Children {
+		if votoVotaveis.Tag != ber.TagSequence {
+			log.Fatalf("expected votoVotaveis to be tag sequence, got %d\n", votoVotaveis.Tag)
+		}
+		if len(votoVotaveis.Children) < 2 {
+			log.Fatalf("expected votoVotaveis to have at least 2 children, got %d\n", len(votoVotaveis.Children))
+		}
+		tipoVoto := TipoVoto(berInt(votoVotaveis.Children[0].Bytes()[2:]))
+		quantidadeVotos := berInt(votoVotaveis.Children[1].Bytes()[2:])
+		if tipoVoto == tipoVotoNominal {
+			identificacaoVotavel := votoVotaveis.Children[2]
+			if len(identificacaoVotavel.Children) != 2 {
+				log.Fatalf("expected identificacaoVotavel to have 2 children, got %d\n", len(identificacaoVotavel.Children))
+			}
+			voto := berInt(identificacaoVotavel.Children[0].ByteValue)
+			buVoto := BUVoto{
+				qtd:      quantidadeVotos,
+				voto:     Presidente(voto),
+				tipoVoto: tipoVoto,
+			}
+			bu.votos = append(bu.votos, buVoto)
+		} else {
+			buVoto := BUVoto{
+				qtd:      quantidadeVotos,
+				tipoVoto: tipoVoto,
+			}
+			bu.votos = append(bu.votos, buVoto)
+		}
+	}
+	return bu
 }
 
 // readBU extrai dados do arquivo .bu
