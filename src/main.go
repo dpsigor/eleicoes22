@@ -9,14 +9,14 @@ import (
 var ufs = []string{"ac", "al", "am", "ap", "ba", "ce", "df", "es", "go", "ma", "mg", "ms", "mt", "pa", "pb", "pe", "pi", "pr", "rj", "rn", "ro", "rr", "rs", "sc", "se", "sp", "to"}
 var destinos = []string{"stdout", "file"}
 
-var bu2json = "./bu2json.py"
+var bu2json = "/home/dpsigor/eleicoes/eleicoes/bu2json.py"
 
 func main() {
-	dir, uf, destino, buDump, buSpec := parseFlags()
+	dir, uf, destino := parseFlags()
 
 	logger := Logger{}
 	ch := make(chan urna)
-	go processUF(dir, buDump, buSpec, ch, uf, &logger)
+	go processUF(dir, ch, uf, &logger)
 
 	logProgress := destino == "file"
 
@@ -36,7 +36,7 @@ func main() {
 		str := fmt.Sprintf("%s;%s;%s;%s;%s;%d;%d;%d;%d;%d;%d;%d;%d;%s;%s\n", v.buname, v.logname, v.municipio, v.zona, v.secao, v.bolso, v.lula, v.brancos, v.nulos, v.qtdComparecimento, v.qtdVotosPR, v.qtdTeclaIndevida, v.qtdAlertas, v.versao, v.modelo)
 		w.WriteString(str)
 		if logProgress {
-			logger.progress()
+			logger.progress(uf)
 		}
 	}
 }

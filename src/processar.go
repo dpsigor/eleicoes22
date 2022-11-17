@@ -45,41 +45,25 @@ type Resultado struct {
 var modeloRgx = regexp.MustCompile(`Modelo de Urna:\s(.+?)\s`)
 var versaoRgx = regexp.MustCompile(`Vers.o da aplica..o:\s+(.+?)\s+`)
 
-func preencherUrnaComBU(u *urna, bu bujson) error {
-	achouEleicao := false
-	for _, eleicao := range bu.EntidadeBoletimUrna.ResultadosVotacaoPorEleicao {
-		if eleicao.IDEleicao != 545 {
-			continue
-		}
-		achouEleicao = true
-		for _, resultado := range eleicao.ResultadosVotacao {
-			u.qtdComparecimento = resultado.QtdComparecimento
-			for _, cargo := range resultado.TotaisVotosCargo {
-				for _, voto := range cargo.VotosVotaveis {
-					if voto.TipoVoto == "nulo" {
-						u.nulos = voto.QuantidadeVotos
-					} else if voto.TipoVoto == "branco" {
-						u.brancos = voto.QuantidadeVotos
-					} else {
-						if voto.IdentificacaoVotavel.Codigo == 13 {
-							u.lula = voto.QuantidadeVotos
-						} else if voto.IdentificacaoVotavel.Codigo == 22 {
-							u.bolso = voto.QuantidadeVotos
-						} else {
-							return fmt.Errorf("bu com voto que não é nulo, nem branco, nem 13 nem 22")
-						}
-					}
-				}
+func preencherUrnaComBU(u *urna, bu BU) error {
+	u.qtdComparecimento = bu.QtdComparecimento
+	for _, v := range bu.Votos {
+		if v.TipoVoto == tipoVotoBranco {
+			u.nulos = v.Qtd
+		} else if v.TipoVoto == tipoVotoNulo {
+			u.brancos = v.Qtd
+		} else {
+			if v.Voto == bolso {
+				u.bolso = v.Qtd
+			} else if v.Voto == lula {
+				u.lula = v.Qtd
 			}
 		}
-	}
-	if !achouEleicao {
-		return fmt.Errorf("não achou eleição")
 	}
 	return nil
 }
 
-func processUrna(dir, buDump, buSpec string, entry fs.DirEntry) urna {
+func processUrna(dir string, entry fs.DirEntry) urna {
 	name := entry.Name()
 	fpath := fmt.Sprintf("%s/%s", dir, name)
 	muStr, znStr, scStr, mu, zn, sc := fPathSecao(fpath)
@@ -90,11 +74,12 @@ func processUrna(dir, buDump, buSpec string, entry fs.DirEntry) urna {
 		secao:     scStr,
 	}
 	// Boletim de Urna
-	bu := readBU(fpath, buDump, buSpec)
+	// bu := readBU(fpath, buDump, buSpec)
+	bu := processaBU(fpath)
 	// validar interior do BU com nome do arquivo
-	buMU := int(bu.EntidadeBoletimUrna.IdentificacaoSecao.MunicipioZona.Municipio)
-	buZN := int(bu.EntidadeBoletimUrna.IdentificacaoSecao.MunicipioZona.Zona)
-	buSC := int(bu.EntidadeBoletimUrna.IdentificacaoSecao.Secao)
+	buMU := int(bu.Municipio)
+	buZN := int(bu.Zona)
+	buSC := int(bu.Secao)
 	assertEqual(mu, buMU, fmt.Sprintf("bu municipio para %s", name))
 	assertEqual(zn, buZN, fmt.Sprintf("bu zona para %s", name))
 	assertEqual(sc, buSC, fmt.Sprintf("bu sc para %s", name))
@@ -124,15 +109,15 @@ func processUrna(dir, buDump, buSpec string, entry fs.DirEntry) urna {
 	return u
 }
 
-func processEntries(dir, buDump, buSpec string, entries []fs.DirEntry, ch chan<- urna) {
-	workers := 2 * runtime.GOMAXPROCS(0)
+func processEntries(dir string, entries []fs.DirEntry, ch chan<- urna) {
+	workers := 4 * 2 * runtime.GOMAXPROCS(0)
 	entriesCh := make(chan fs.DirEntry)
 	wg := sync.WaitGroup{}
 	for i := 0; i < workers; i++ {
 		go func(entries <-chan fs.DirEntry, results chan<- urna) {
 			wg.Add(1)
 			for entry := range entries {
-				results <- processUrna(dir, buDump, buSpec, entry)
+				results <- processUrna(dir, entry)
 			}
 			wg.Done()
 		}(entriesCh, ch)
@@ -141,6 +126,10 @@ func processEntries(dir, buDump, buSpec string, entries []fs.DirEntry, ch chan<-
 		name := entries[k].Name()
 		if strings.Contains(name, "am_o00407-0255000680797") {
 			// AM mu 02550 zona 0068 secao 0797 não tem dados
+			continue
+		}
+		if strings.Contains(name, "ba_o00407-3413401710232") {
+			// BA mu 34134 zona 0171 secao 0232 não tem dados no dia da eleição segundo turno
 			continue
 		}
 		if strings.HasSuffix(name, ".bu") {
@@ -152,7 +141,7 @@ func processEntries(dir, buDump, buSpec string, entries []fs.DirEntry, ch chan<-
 	close(ch)
 }
 
-func processUF(dir, buDump, buSpec string, ch chan<- urna, uf string, logger *Logger) {
+func processUF(dir string, ch chan<- urna, uf string, logger *Logger) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		log.Fatal(err)
@@ -162,5 +151,5 @@ func processUF(dir, buDump, buSpec string, ch chan<- urna, uf string, logger *Lo
 		return strings.HasPrefix(n, uf) && strings.HasSuffix(n, ".bu")
 	})
 	logger.totalUrnas = len(entries)
-	processEntries(dir, buDump, buSpec, entries, ch)
+	processEntries(dir, entries, ch)
 }
