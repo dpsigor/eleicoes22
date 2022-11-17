@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 
 	"github.com/dpsigor/hltrnty"
 )
@@ -17,11 +16,11 @@ func mustExist(path string) {
 	}
 }
 
-func parseFlags() (string, string, string, string, string) {
+func parseFlags() (string, string, string) {
 	dirPtr := flag.String("dir", "", "Caminho do diretório que contém os arquivos .bu e .logjez")
-	faURL := "https://www.tre-mt.jus.br/eleicoes/eleicoes-2022/documentacao-tecnica-do-software-da-urna-eletronica"
-	faDsc := fmt.Sprintf("Caminho do diretório que contém o conteúdo do zip 'Formato dos arquivos de BU, RDV e assinatura digital'. Obter em %s", faURL)
-	formatoArquivosPtr := flag.String("fa", "", faDsc)
+	// faURL := "https://www.tre-mt.jus.br/eleicoes/eleicoes-2022/documentacao-tecnica-do-software-da-urna-eletronica"
+	// faDsc := fmt.Sprintf("Caminho do diretório que contém o conteúdo do zip 'Formato dos arquivos de BU, RDV e assinatura digital'. Obter em %s", faURL)
+	// formatoArquivosPtr := flag.String("fa", "", faDsc)
 	ufPtr := flag.String("uf", "", fmt.Sprintf("UF a extrair dados. Valores: %s", ufs))
 	destinoPtr := flag.String("dest", "stdout", fmt.Sprintf("Destino. Valores: %s.", destinos))
 	flag.Parse()
@@ -30,10 +29,10 @@ func parseFlags() (string, string, string, string, string) {
 		log.Fatal("flag dir é obrigatória")
 	}
 	mustExist(*dirPtr)
-	if *formatoArquivosPtr == "" {
-		flag.Usage()
-		log.Fatal("flag 'fa' é obrigatória")
-	}
+	// if *formatoArquivosPtr == "" {
+	// 	flag.Usage()
+	// 	log.Fatal("flag 'fa' é obrigatória")
+	// }
 	if *ufPtr == "" {
 		flag.Usage()
 		log.Fatal("flag uf é obrigatória")
@@ -50,9 +49,9 @@ func parseFlags() (string, string, string, string, string) {
 		flag.Usage()
 		log.Fatalf("destino inválido: '%s'\n", *destinoPtr)
 	}
-	buDump := path.Join(*formatoArquivosPtr, "python", "bu_dump.py")
-	mustExist(buDump)
-	buSpec := path.Join(*formatoArquivosPtr, "spec", "bu.asn1")
-	mustExist(buSpec)
-	return *dirPtr, *ufPtr, *destinoPtr, buDump, buSpec
+	// buDump := path.Join(*formatoArquivosPtr, "python", "bu_dump.py")
+	// mustExist(buDump)
+	// buSpec := path.Join(*formatoArquivosPtr, "spec", "bu.asn1")
+	// mustExist(buSpec)
+	return *dirPtr, *ufPtr, *destinoPtr
 }

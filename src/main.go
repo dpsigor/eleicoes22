@@ -9,14 +9,14 @@ import (
 var ufs = []string{"ac", "al", "am", "ap", "ba", "ce", "df", "es", "go", "ma", "mg", "ms", "mt", "pa", "pb", "pe", "pi", "pr", "rj", "rn", "ro", "rr", "rs", "sc", "se", "sp", "to"}
 var destinos = []string{"stdout", "file"}
 
-var bu2json = "./bu2json.py"
+var bu2json = "/home/dpsigor/eleicoes/eleicoes/bu2json.py"
 
 func main() {
-	dir, uf, destino, buDump, buSpec := parseFlags()
+	dir, uf, destino := parseFlags()
 
 	logger := Logger{}
 	ch := make(chan urna)
-	go processUF(dir, buDump, buSpec, ch, uf, &logger)
+	go processUF(dir, ch, uf, &logger)
 
 	logProgress := destino == "file"
 

@@ -24,7 +24,7 @@ func parseLogDeUrna(f io.ReadCloser) Resultado {
 	lines := bytes.Split(bs, LF)
 	votosPRQtd := 0
 	for _, line := range lines {
-		if !bytes.HasPrefix(line, TS) && !bytes.HasPrefix(line, TSMinus1) {
+		if !bytes.HasPrefix(line, TS) && !bytes.HasPrefix(line, TSMinus1) && !bytes.HasPrefix(line, TSMinus2) {
 			continue
 		}
 		if bytes.Contains(line, SE) {
@@ -102,7 +102,21 @@ func openAndParseLogDeUrnaZip(zippath string) []Resultado {
 			log.Fatal(err)
 		}
 		defer f.Close()
-		rs = append(rs, parseLogDeUrna(f))
+
+		r := parseLogDeUrna(f)
+
+		// Execeções: Ver README.md
+		if strings.HasSuffix(zippath, "al_o00407-2777400140036.logjez") && r.Municipio == 27855 {
+			r.Municipio = 27774
+			r.Zona = 14
+			r.Secao = 36
+		} else if strings.HasSuffix(zippath, "am_o00407-0255000680512.logjez") {
+			r.Municipio = 2550
+			r.Zona = 68
+			r.Secao = 512
+		}
+
+		rs = append(rs, r)
 	}
 	return rs
 }

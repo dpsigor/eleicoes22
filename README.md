@@ -35,8 +35,6 @@ Primeiro deve-se realizar o download dos arquivos .bu e .logjez no formato: `[uf
 Requerimentos:
 
 - go versão 1.18+
-- python3 no PATH, com esse nome
-- [Documentação técnica do software da urna eletrônica](https://www.tre-mt.jus.br/eleicoes/eleicoes-2022/documentacao-tecnica-do-software-da-urna-eletronica): realizar download de "Formato dos arquivos de BU, RDV e assinatura digital (formato ZIP)" e extrair. Para processar, o caminho do diretório resultante deve ser passado para o flag `-fa`
 
 Para obter informações: `go run ./src -h`
 
@@ -45,3 +43,15 @@ Exemplo no script `run.bash`
 ## Testes
 
 Para garantir que utiliza-se os arquivos da pasta "test", utilizar: `go test -v ./src/`
+
+## ASN.1
+
+A função `readBU` não é mais utilizada, pois implementamos leitura de ans1 por conta própria. Para testar:
+
+- python3 no PATH, com esse nome
+- [Documentação técnica do software da urna eletrônica](https://www.tre-mt.jus.br/eleicoes/eleicoes-2022/documentacao-tecnica-do-software-da-urna-eletronica): realizar download de "Formato dos arquivos de BU, RDV e assinatura digital (formato ZIP)" e extrair. Para processar, o caminho do diretório resultante deve ser passado para o flag `-fa`
+
+## Arquivos com problemas
+
+- Jundiá, AL, Zona 0014 Seção 0036 -> Log da Urna devolve um log identificação incorreta: município 27855 ao invés de 27774, zona 0001 ao invés de 0014 e seção 0000 ao invés de 0036
+- Manaus, AM, Zona 68 Seção 0512 -> Log da Urna tem quase nada no segundo turno.
